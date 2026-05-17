@@ -233,6 +233,27 @@ export function App() {
     }));
   }
 
+  async function updateCustomJavaPath(customJavaPath?: string) {
+    const nextConfig = {
+      ...configState.config,
+      customJavaPath: customJavaPath?.trim() || undefined
+    };
+
+    setConfigState((current) => ({
+      ...current,
+      config: nextConfig,
+      status: "Saving Java runtime path"
+    }));
+
+    await saveLauncherConfig(nextConfig);
+
+    setConfigState((current) => ({
+      ...current,
+      status: nextConfig.customJavaPath ? "Custom Java path saved" : "Custom Java path cleared"
+    }));
+    await handleSystemScan();
+  }
+
   async function selectProfile(profile: LaunchProfile) {
     const nextConfig = {
       ...configState.config,
@@ -542,7 +563,9 @@ export function App() {
         ) : activeSection === "settings" ? (
           <SettingsScreen
             backgroundAnimation={configState.config.backgroundAnimation}
+            customJavaPath={configState.config.customJavaPath}
             status={configState.status}
+            onSaveCustomJavaPath={updateCustomJavaPath}
             onToggleAnimation={toggleAnimation}
           />
         ) : activeSection === "logs" ? (
@@ -1162,17 +1185,36 @@ function formatLogTime(value: string) {
 
 function SettingsScreen({
   backgroundAnimation,
+  customJavaPath,
   status,
+  onSaveCustomJavaPath,
   onToggleAnimation
 }: {
   backgroundAnimation: boolean;
+  customJavaPath?: string;
   status: string;
+  onSaveCustomJavaPath: (path?: string) => void;
   onToggleAnimation: () => void;
 }) {
+  const [javaPath, setJavaPath] = useState(customJavaPath ?? "");
+
+  useEffect(() => {
+    setJavaPath(customJavaPath ?? "");
+  }, [customJavaPath]);
+
   return (
-    <section className="placeholder-screen settings-screen" aria-labelledby="settings-title">
-      <p className="eyebrow">Launcher settings</p>
-      <h1 id="settings-title">Settings</h1>
+    <section className="settings-screen" aria-labelledby="settings-title">
+      <header className="screen-header">
+        <div>
+          <p className="eyebrow">Launcher settings</p>
+          <h1 id="settings-title">Settings</h1>
+        </div>
+        <div className="profile-pill">
+          <Coffee size={16} />
+          <span>{status}</span>
+        </div>
+      </header>
+
       <div className="setting-row">
         <div>
           <strong>Background motion</strong>
@@ -1182,6 +1224,38 @@ function SettingsScreen({
           <span />
         </button>
       </div>
+
+      <form
+        className="settings-panel"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSaveCustomJavaPath(javaPath);
+        }}
+      >
+        <div className="settings-panel-header">
+          <div>
+            <strong>Custom Java runtime</strong>
+            <span>Use a specific java.exe when automatic detection misses the right runtime.</span>
+          </div>
+          <Coffee size={20} />
+        </div>
+        <label htmlFor="custom-java-path">java.exe path</label>
+        <div className="settings-input-row">
+          <input
+            id="custom-java-path"
+            onChange={(event) => setJavaPath(event.target.value)}
+            placeholder="C:\\Program Files\\Java\\jdk-21\\bin\\java.exe"
+            type="text"
+            value={javaPath}
+          />
+          <button className="secondary-action" type="submit">
+            Save
+          </button>
+          <button className="secondary-action" type="button" onClick={() => onSaveCustomJavaPath(undefined)}>
+            Reset
+          </button>
+        </div>
+      </form>
     </section>
   );
 }

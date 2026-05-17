@@ -498,7 +498,12 @@ h1 {
 }
 
 .settings-screen {
+  display: grid;
+  width: 100%;
+  max-width: 760px;
+  min-height: 100%;
   align-content: center;
+  gap: 18px;
 }
 
 .accounts-screen {
@@ -1174,6 +1179,64 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel-strong);
+}
+
+.settings-panel {
+  display: grid;
+  gap: 12px;
+  width: min(760px, 100%);
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-strong);
+}
+
+.settings-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.settings-panel-header strong,
+.settings-panel-header span {
+  display: block;
+}
+
+.settings-panel-header strong {
+  margin-bottom: 6px;
+}
+
+.settings-panel-header span,
+.settings-panel label {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.settings-panel label {
+  font-weight: 800;
+}
+
+.settings-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+}
+
+.settings-input-row input {
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  outline: none;
+  background: rgba(4, 9, 14, 0.72);
+  color: #eef8ff;
+  font: inherit;
+}
+
+.settings-input-row input:focus {
+  border-color: rgba(102, 217, 255, 0.46);
 }
 
 .setting-row strong,
