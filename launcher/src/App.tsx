@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Folder,
   LogOut,
+  ListChecks,
   Play,
   Power,
   RefreshCw,
@@ -31,7 +32,13 @@ import {
 } from "./auth";
 import { defaultConfig, loadLauncherConfig, saveLauncherConfig, type LauncherConfig } from "./config";
 import { navItems } from "./data";
-import { evaluateLaunchReadiness, prepareLaunchPlan, type LaunchPlan, type LaunchReadiness } from "./launch";
+import {
+  evaluateLaunchReadiness,
+  prepareLaunchPlan,
+  type LaunchHistoryEntry,
+  type LaunchPlan,
+  type LaunchReadiness
+} from "./launch";
 import {
   getModpack,
   getProfile,
@@ -71,6 +78,8 @@ type LaunchState = {
   plan?: LaunchPlan;
 };
 
+const launchHistoryKey = "helix-launch-history";
+
 export function App() {
   const [activeSection, setActiveSection] = useState("home");
   const [configState, setConfigState] = useState<ConfigState>({
@@ -91,6 +100,7 @@ export function App() {
     status: "idle",
     message: "No launch plan prepared yet"
   });
+  const [launchHistory, setLaunchHistory] = useState<LaunchHistoryEntry[]>([]);
 
   useEffect(() => {
     let isMounted = true;
@@ -116,6 +126,18 @@ export function App() {
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    const raw = window.localStorage.getItem(launchHistoryKey);
+    if (!raw) return;
+
+    try {
+      const entries = JSON.parse(raw) as LaunchHistoryEntry[];
+      setLaunchHistory(entries.slice(0, 12));
+    } catch {
+      window.localStorage.removeItem(launchHistoryKey);
+    }
   }, []);
 
   useEffect(() => {
@@ -388,6 +410,17 @@ export function App() {
         status: plan.blockers.length === 0 ? "ready" : "error",
         message: plan.message
       });
+      recordLaunchHistory({
+        blockerCount: plan.blockers.length,
+        createdAt: new Date().toISOString(),
+        gameDir: plan.gameDir,
+        id: plan.sessionId,
+        javaPath: plan.javaPath,
+        message: plan.message,
+        profileName: plan.profileName,
+        stageCount: plan.stages.length,
+        status: plan.blockers.length === 0 ? "ready" : "blocked"
+      });
       setConfigState((current) => ({
         ...current,
         status: plan.message
@@ -398,11 +431,33 @@ export function App() {
         status: "error",
         message
       });
+      recordLaunchHistory({
+        blockerCount: 1,
+        createdAt: new Date().toISOString(),
+        id: `error-${Date.now()}`,
+        message,
+        profileName: selectedProfile.name,
+        stageCount: 0,
+        status: "error"
+      });
       setConfigState((current) => ({
         ...current,
         status: message
       }));
     }
+  }
+
+  function recordLaunchHistory(entry: LaunchHistoryEntry) {
+    setLaunchHistory((current) => {
+      const next = [entry, ...current].slice(0, 12);
+      window.localStorage.setItem(launchHistoryKey, JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function clearLaunchHistory() {
+    setLaunchHistory([]);
+    window.localStorage.removeItem(launchHistoryKey);
   }
 
   return (
@@ -490,6 +545,8 @@ export function App() {
             status={configState.status}
             onToggleAnimation={toggleAnimation}
           />
+        ) : activeSection === "logs" ? (
+          <LogsScreen entries={launchHistory} onClear={clearLaunchHistory} />
         ) : (
           <PlaceholderScreen section={activeLabel} />
         )}
@@ -1030,6 +1087,77 @@ function AccountsScreen({
       </div>
     </section>
   );
+}
+
+function LogsScreen({
+  entries,
+  onClear
+}: {
+  entries: LaunchHistoryEntry[];
+  onClear: () => void;
+}) {
+  return (
+    <section className="logs-screen" aria-labelledby="logs-title">
+      <header className="screen-header">
+        <div>
+          <p className="eyebrow">Launcher telemetry</p>
+          <h1 id="logs-title">Logs</h1>
+        </div>
+        <button className="icon-label-button" type="button" onClick={onClear} disabled={entries.length === 0}>
+          <ListChecks size={18} />
+          <span>Clear</span>
+        </button>
+      </header>
+
+      <div className="log-list">
+        {entries.length === 0 ? (
+          <div className="empty-state compact">
+            <ListChecks size={24} />
+            <strong>No launch plans yet</strong>
+            <span>Press Play on Home to create a dry-run launch plan and capture its stages here.</span>
+          </div>
+        ) : (
+          entries.map((entry) => (
+            <article className={`log-row ${entry.status}`} key={entry.id}>
+              <div className="log-status">
+                <StatusIcon ok={entry.status === "ready"} />
+              </div>
+              <div className="log-main">
+                <strong>{entry.profileName}</strong>
+                <span>{entry.message}</span>
+              </div>
+              <dl>
+                <div>
+                  <dt>Session</dt>
+                  <dd>{entry.id}</dd>
+                </div>
+                <div>
+                  <dt>Created</dt>
+                  <dd>{formatLogTime(entry.createdAt)}</dd>
+                </div>
+                <div>
+                  <dt>Stages</dt>
+                  <dd>{entry.stageCount}</dd>
+                </div>
+                <div>
+                  <dt>Blockers</dt>
+                  <dd>{entry.blockerCount}</dd>
+                </div>
+              </dl>
+            </article>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+function formatLogTime(value: string) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).format(new Date(value));
 }
 
 function SettingsScreen({

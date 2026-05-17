@@ -54,6 +54,18 @@ export type LaunchPlan = {
   message: string;
 };
 
+export type LaunchHistoryEntry = {
+  id: string;
+  createdAt: string;
+  profileName: string;
+  status: "ready" | "blocked" | "error";
+  message: string;
+  blockerCount: number;
+  stageCount: number;
+  javaPath?: string;
+  gameDir?: string;
+};
+
 export function evaluateLaunchReadiness({
   account,
   modpack,

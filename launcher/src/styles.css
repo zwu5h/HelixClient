@@ -216,7 +216,8 @@ button {
 .accounts-screen,
 .versions-screen,
 .profiles-screen,
-.modpacks-screen {
+.modpacks-screen,
+.logs-screen {
   display: grid;
   width: 100%;
   max-width: 920px;
@@ -514,7 +515,8 @@ h1 {
 .system-summary,
 .java-row,
 .profile-card,
-.modpack-row {
+.modpack-row,
+.log-row {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -924,7 +926,8 @@ h1 {
 }
 
 .profiles-screen,
-.modpacks-screen {
+.modpacks-screen,
+.logs-screen {
   align-content: center;
   gap: 18px;
 }
@@ -1078,6 +1081,87 @@ h1 {
   border-color: rgba(117, 240, 177, 0.3);
   background: rgba(117, 240, 177, 0.08);
   color: #bcf8d7;
+}
+
+.log-list {
+  display: grid;
+  gap: 10px;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) minmax(360px, 0.78fr);
+  align-items: center;
+  gap: 14px;
+  min-height: 88px;
+  padding: 14px;
+}
+
+.log-row.ready {
+  border-color: rgba(117, 240, 177, 0.24);
+}
+
+.log-row.blocked,
+.log-row.error {
+  border-color: rgba(255, 211, 111, 0.24);
+}
+
+.log-status {
+  display: grid;
+  place-items: center;
+}
+
+.log-main {
+  min-width: 0;
+}
+
+.log-main strong,
+.log-main span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-main strong {
+  margin-bottom: 6px;
+  font-size: 17px;
+}
+
+.log-main span {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.log-row dl {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.log-row dl div {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(150, 210, 240, 0.12);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.log-row dt {
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.log-row dd {
+  margin: 0;
+  overflow: hidden;
+  color: #edf8ff;
+  font-size: 12px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .setting-row {
