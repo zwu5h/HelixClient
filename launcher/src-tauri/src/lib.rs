@@ -226,6 +226,13 @@ struct LocalLibraryRequest {
 #[serde(rename_all = "camelCase")]
 struct LocalLibraryStatus {
     root_dir: String,
+    exists: bool,
+    index_exists: bool,
+    profile_count: usize,
+    version_count: usize,
+    modpack_count: usize,
+    manifest_count: usize,
+    missing_dirs: Vec<String>,
     created_dirs: Vec<String>,
     written_files: Vec<String>,
     message: String,
@@ -484,12 +491,27 @@ fn prepare_local_library(
     .map_err(|error| format!("Could not write {}: {error}", index_path.display()))?;
     written_files.push(index_path.to_string_lossy().into_owned());
 
-    Ok(LocalLibraryStatus {
-        root_dir: root.to_string_lossy().into_owned(),
+    Ok(local_library_status(
+        &root,
         created_dirs,
         written_files,
-        message: "Local Helix library prepared.".to_string(),
-    })
+        "Local Helix library prepared.",
+    ))
+}
+
+#[tauri::command]
+fn inspect_local_library(app: tauri::AppHandle) -> Result<LocalLibraryStatus, String> {
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Could not resolve app data directory: {error}"))?;
+
+    Ok(local_library_status(
+        &root,
+        Vec::new(),
+        Vec::new(),
+        "Local Helix library inspected.",
+    ))
 }
 
 #[tauri::command]
@@ -1144,6 +1166,63 @@ fn local_library_dirs(root: &Path) -> Vec<PathBuf> {
     .collect()
 }
 
+fn local_library_status(
+    root: &Path,
+    created_dirs: Vec<String>,
+    written_files: Vec<String>,
+    prepared_message: &str,
+) -> LocalLibraryStatus {
+    let missing_dirs: Vec<String> = local_library_dirs(root)
+        .into_iter()
+        .filter(|path| !path.exists())
+        .map(|path| path.to_string_lossy().into_owned())
+        .collect();
+    let index_exists = root.join("manifests").join("index.json").exists();
+    let profile_count = count_json_files(&root.join("manifests").join("profiles"));
+    let version_count = count_json_files(&root.join("manifests").join("versions"));
+    let modpack_count = count_json_files(&root.join("manifests").join("modpacks"));
+    let manifest_count = profile_count + version_count + modpack_count;
+    let exists = missing_dirs.is_empty() && index_exists;
+    let message = if !written_files.is_empty() || !created_dirs.is_empty() {
+        prepared_message.to_string()
+    } else if exists {
+        "Local Helix library is ready.".to_string()
+    } else {
+        "Local Helix library is not prepared yet.".to_string()
+    };
+
+    LocalLibraryStatus {
+        root_dir: root.to_string_lossy().into_owned(),
+        exists,
+        index_exists,
+        profile_count,
+        version_count,
+        modpack_count,
+        manifest_count,
+        missing_dirs,
+        created_dirs,
+        written_files,
+        message,
+    }
+}
+
+fn count_json_files(dir: &Path) -> usize {
+    fs::read_dir(dir)
+        .map(|entries| {
+            entries
+                .flatten()
+                .filter(|entry| {
+                    entry
+                        .path()
+                        .extension()
+                        .and_then(|extension| extension.to_str())
+                        == Some("json")
+                })
+                .count()
+        })
+        .unwrap_or(0)
+}
+
 fn write_manifest_collection(
     dir: &Path,
     manifests: &[serde_json::Value],
@@ -1324,6 +1403,7 @@ pub fn run() {
             detect_system_paths,
             prepare_launch_plan,
             prepare_local_library,
+            inspect_local_library,
             load_accounts,
             start_microsoft_login,
             logout_account,

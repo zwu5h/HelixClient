@@ -40,7 +40,7 @@ import {
   type LaunchPlan,
   type LaunchReadiness
 } from "./launch";
-import { prepareLocalLibrary, type LocalLibraryStatus } from "./localLibrary";
+import { inspectLocalLibrary, prepareLocalLibrary, type LocalLibraryStatus } from "./localLibrary";
 import {
   getModpack,
   getProfile,
@@ -82,7 +82,7 @@ type LaunchState = {
 };
 
 type LibraryState = {
-  status: "idle" | "loading" | "ready" | "error";
+  status: "idle" | "checking" | "loading" | "ready" | "error";
   message: string;
   result?: LocalLibraryStatus;
 };
@@ -111,8 +111,8 @@ export function App() {
   });
   const [launchHistory, setLaunchHistory] = useState<LaunchHistoryEntry[]>([]);
   const [libraryState, setLibraryState] = useState<LibraryState>({
-    status: "idle",
-    message: "Local library not prepared yet"
+    status: "checking",
+    message: "Checking local library"
   });
 
   useEffect(() => {
@@ -155,6 +155,10 @@ export function App() {
 
   useEffect(() => {
     void handleSystemScan();
+  }, []);
+
+  useEffect(() => {
+    void handleInspectLocalLibrary();
   }, []);
 
   useEffect(() => {
@@ -435,6 +439,28 @@ export function App() {
     }
   }
 
+  async function handleInspectLocalLibrary() {
+    setLibraryState((current) => ({
+      ...current,
+      status: "checking",
+      message: "Checking local library"
+    }));
+
+    try {
+      const result = await inspectLocalLibrary();
+      setLibraryState({
+        result,
+        status: result.exists ? "ready" : "idle",
+        message: result.message
+      });
+    } catch (error) {
+      setLibraryState({
+        status: "error",
+        message: `Could not inspect local library: ${String(error)}`
+      });
+    }
+  }
+
   async function handleLaunchAttempt() {
     setLaunchState((current) => ({
       ...current,
@@ -629,6 +655,7 @@ export function App() {
             libraryState={libraryState}
             selectedModpackId={selectedModpack.id}
             onPrepareLocalLibrary={handlePrepareLocalLibrary}
+            onRefreshLocalLibrary={handleInspectLocalLibrary}
             onSelectModpack={(modpack) => selectProfile(getProfileForModpack(modpack.id))}
           />
         ) : activeSection === "settings" ? (
@@ -973,13 +1000,17 @@ function ModpacksScreen({
   libraryState,
   selectedModpackId,
   onPrepareLocalLibrary,
+  onRefreshLocalLibrary,
   onSelectModpack
 }: {
   libraryState: LibraryState;
   selectedModpackId: string;
   onPrepareLocalLibrary: () => void;
+  onRefreshLocalLibrary: () => void;
   onSelectModpack: (modpack: ModpackOption) => void;
 }) {
+  const libraryBusy = libraryState.status === "loading" || libraryState.status === "checking";
+
   return (
     <section className="modpacks-screen" aria-labelledby="modpacks-title">
       <header className="screen-header">
@@ -987,10 +1018,16 @@ function ModpacksScreen({
           <p className="eyebrow">Modpack catalog</p>
           <h1 id="modpacks-title">Modpacks</h1>
         </div>
-        <button className="icon-label-button" type="button" onClick={onPrepareLocalLibrary} disabled={libraryState.status === "loading"}>
-          <HardDrive size={18} />
-          <span>{libraryState.status === "loading" ? "Preparing" : "Prepare files"}</span>
-        </button>
+        <div className="screen-actions">
+          <button className="icon-label-button" type="button" onClick={onRefreshLocalLibrary} disabled={libraryBusy}>
+            <RefreshCw size={18} />
+            <span>{libraryState.status === "checking" ? "Checking" : "Refresh"}</span>
+          </button>
+          <button className="icon-label-button" type="button" onClick={onPrepareLocalLibrary} disabled={libraryBusy}>
+            <HardDrive size={18} />
+            <span>{libraryState.status === "loading" ? "Preparing" : "Prepare files"}</span>
+          </button>
+        </div>
       </header>
 
       <LocalLibraryPanel libraryState={libraryState} />
@@ -1050,7 +1087,7 @@ function ModpacksScreen({
 }
 
 function LocalLibraryPanel({ libraryState }: { libraryState: LibraryState }) {
-  if (libraryState.status === "idle") {
+  if (libraryState.status === "idle" && !libraryState.result) {
     return (
       <section className="library-panel" aria-label="Local library status">
         <HardDrive size={20} />
@@ -1062,16 +1099,42 @@ function LocalLibraryPanel({ libraryState }: { libraryState: LibraryState }) {
     );
   }
 
+  const result = libraryState.result;
+  const ok = libraryState.status === "ready" && Boolean(result?.exists);
+  const detail = result
+    ? result.exists
+      ? `${result.manifestCount} manifests in ${result.rootDir}`
+      : result.missingDirs.length > 0
+        ? `${result.missingDirs.length} missing directories in ${result.rootDir}`
+        : `Manifest index missing or backend unavailable for ${result.rootDir}`
+    : "No local library result yet";
+
   return (
     <section className="library-panel" aria-label="Local library status">
-      <StatusIcon ok={libraryState.status === "ready"} />
+      <StatusIcon ok={ok} />
       <div>
         <strong>{libraryState.message}</strong>
-        <span>
-          {libraryState.result
-            ? `${libraryState.result.writtenFiles.length} manifests written in ${libraryState.result.rootDir}`
-            : "No files written yet"}
-        </span>
+        <span>{detail}</span>
+        {result ? (
+          <dl className="library-meta">
+            <div>
+              <dt>Profiles</dt>
+              <dd>{result.profileCount}</dd>
+            </div>
+            <div>
+              <dt>Versions</dt>
+              <dd>{result.versionCount}</dd>
+            </div>
+            <div>
+              <dt>Modpacks</dt>
+              <dd>{result.modpackCount}</dd>
+            </div>
+            <div>
+              <dt>Index</dt>
+              <dd>{result.indexExists ? "Ready" : "Missing"}</dd>
+            </div>
+          </dl>
+        ) : null}
       </div>
     </section>
   );

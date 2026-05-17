@@ -801,6 +801,13 @@ h1 {
   opacity: 0.64;
 }
 
+.screen-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .system-summary {
   display: flex;
   align-items: center;
@@ -1019,7 +1026,7 @@ h1 {
 .library-panel {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr);
-  align-items: center;
+  align-items: start;
   gap: 12px;
   min-height: 64px;
   padding: 14px 16px;
@@ -1040,6 +1047,36 @@ h1 {
 .library-panel span {
   color: var(--muted);
   font-size: 13px;
+}
+
+.library-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 0;
+}
+
+.library-meta div {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid rgba(150, 210, 240, 0.12);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.library-meta dt {
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.library-meta dd {
+  margin: 0;
+  overflow: hidden;
+  color: #edf8ff;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .modpack-row {
