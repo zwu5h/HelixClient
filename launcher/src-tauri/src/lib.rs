@@ -4,10 +4,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::{
+    collections::HashSet,
     fs,
     io::{Read, Write},
     net::TcpListener,
-    path::PathBuf,
+    path::{Path, PathBuf},
+    process::Command,
     sync::Mutex,
     thread,
 };
@@ -40,6 +42,8 @@ struct LauncherConfig {
     selected_modpack_id: String,
     accent_color: String,
     background_animation: bool,
+    #[serde(default)]
+    custom_java_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,6 +130,44 @@ struct MinecraftEntitlement {
     name: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SystemDetection {
+    minecraft: MinecraftPathStatus,
+    java: JavaDetection,
+    message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MinecraftPathStatus {
+    path: Option<String>,
+    exists: bool,
+    versions_dir_exists: bool,
+    mods_dir_exists: bool,
+    launcher_profiles_exists: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct JavaDetection {
+    installations: Vec<JavaInstallation>,
+    java8: Option<JavaInstallation>,
+    modern: Option<JavaInstallation>,
+    custom: Option<JavaInstallation>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct JavaInstallation {
+    path: String,
+    version: Option<String>,
+    major_version: Option<u32>,
+    source: String,
+    supports_1_8_9: bool,
+    supports_modern: bool,
+}
+
 impl Default for LauncherConfig {
     fn default() -> Self {
         Self {
@@ -134,6 +176,7 @@ impl Default for LauncherConfig {
             selected_modpack_id: "1.8.9 PvP".to_string(),
             accent_color: "#66d9ff".to_string(),
             background_animation: true,
+            custom_java_path: None,
         }
     }
 }
@@ -173,6 +216,36 @@ fn save_launcher_config(app: tauri::AppHandle, config: LauncherConfig) -> Result
         .map_err(|error| format!("Could not serialize launcher config: {error}"))?;
 
     fs::write(path, raw).map_err(|error| format!("Could not write launcher config: {error}"))
+}
+
+#[tauri::command]
+fn detect_system_paths(app: tauri::AppHandle) -> Result<SystemDetection, String> {
+    let config = load_launcher_config(app)?;
+    let minecraft = detect_minecraft_path();
+    let java = detect_java_installations(config.custom_java_path.as_deref());
+    let message = match (
+        minecraft.exists,
+        java.java8.is_some(),
+        java.modern.is_some(),
+    ) {
+        (true, true, true) => "Minecraft folder, Java 8 and modern Java are ready.",
+        (true, false, true) => {
+            "Minecraft folder and modern Java found. Java 8 is still needed for 1.8.9."
+        }
+        (true, true, false) => {
+            "Minecraft folder and Java 8 found. Java 21+ is still needed for modern versions."
+        }
+        (true, false, false) => {
+            "Minecraft folder found, but no suitable Java runtime was detected."
+        }
+        (false, _, _) => "Minecraft folder was not found in the default Windows location.",
+    };
+
+    Ok(SystemDetection {
+        minecraft,
+        java,
+        message: message.to_string(),
+    })
 }
 
 #[tauri::command]
@@ -623,6 +696,182 @@ fn validate_minecraft_ownership(access_token: &str) -> Result<bool, String> {
         .any(|item| item.name == "game_minecraft" || item.name == "product_minecraft"))
 }
 
+fn detect_minecraft_path() -> MinecraftPathStatus {
+    let mut candidates = Vec::new();
+    if let Ok(appdata) = std::env::var("APPDATA") {
+        candidates.push(PathBuf::from(appdata).join(".minecraft"));
+    }
+    if let Ok(user_profile) = std::env::var("USERPROFILE") {
+        candidates.push(
+            PathBuf::from(user_profile)
+                .join("AppData")
+                .join("Roaming")
+                .join(".minecraft"),
+        );
+    }
+
+    let path = candidates
+        .into_iter()
+        .find(|candidate| candidate.exists())
+        .unwrap_or_else(default_minecraft_path);
+
+    MinecraftPathStatus {
+        exists: path.exists(),
+        versions_dir_exists: path.join("versions").exists(),
+        mods_dir_exists: path.join("mods").exists(),
+        launcher_profiles_exists: path.join("launcher_profiles.json").exists(),
+        path: Some(path.to_string_lossy().into_owned()),
+    }
+}
+
+fn default_minecraft_path() -> PathBuf {
+    std::env::var("APPDATA")
+        .map(|appdata| PathBuf::from(appdata).join(".minecraft"))
+        .unwrap_or_else(|_| PathBuf::from(".minecraft"))
+}
+
+fn detect_java_installations(custom_java_path: Option<&str>) -> JavaDetection {
+    let mut candidates = Vec::new();
+
+    if let Some(custom) = custom_java_path.filter(|path| !path.trim().is_empty()) {
+        candidates.push((PathBuf::from(custom), "Custom path".to_string()));
+    }
+
+    if let Ok(java_home) = std::env::var("JAVA_HOME") {
+        candidates.push((
+            PathBuf::from(java_home).join("bin").join("java.exe"),
+            "JAVA_HOME".to_string(),
+        ));
+    }
+
+    if let Ok(path) = std::env::var("PATH") {
+        for entry in std::env::split_paths(&path) {
+            candidates.push((entry.join("java.exe"), "PATH".to_string()));
+        }
+    }
+
+    for root in java_search_roots() {
+        collect_java_candidates(&root, "Installed runtime", &mut candidates);
+    }
+
+    let mut seen = HashSet::new();
+    let mut installations = Vec::new();
+    let mut custom = None;
+
+    for (path, source) in candidates {
+        if !path.exists() || !path.is_file() {
+            continue;
+        }
+
+        let canonical = path.canonicalize().unwrap_or(path);
+        let key = canonical.to_string_lossy().to_lowercase();
+        if !seen.insert(key) {
+            continue;
+        }
+
+        let installation = inspect_java(&canonical, &source);
+        if source == "Custom path" {
+            custom = Some(installation.clone());
+        }
+        installations.push(installation);
+    }
+
+    installations.sort_by(|left, right| {
+        right
+            .major_version
+            .cmp(&left.major_version)
+            .then_with(|| left.path.cmp(&right.path))
+    });
+
+    let java8 = installations
+        .iter()
+        .find(|java| java.supports_1_8_9)
+        .cloned();
+    let modern = installations
+        .iter()
+        .find(|java| java.supports_modern)
+        .cloned();
+
+    JavaDetection {
+        installations,
+        java8,
+        modern,
+        custom,
+    }
+}
+
+fn java_search_roots() -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    for base in ["ProgramFiles", "ProgramFiles(x86)"] {
+        if let Ok(program_files) = std::env::var(base) {
+            let root = PathBuf::from(program_files);
+            for vendor in [
+                "Java",
+                "Eclipse Adoptium",
+                "Microsoft",
+                "Zulu",
+                "BellSoft",
+                "Amazon Corretto",
+            ] {
+                roots.push(root.join(vendor));
+            }
+        }
+    }
+    roots
+}
+
+fn collect_java_candidates(root: &Path, source: &str, candidates: &mut Vec<(PathBuf, String)>) {
+    let Ok(entries) = fs::read_dir(root) else {
+        return;
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        candidates.push((path.join("bin").join("java.exe"), source.to_string()));
+    }
+}
+
+fn inspect_java(path: &Path, source: &str) -> JavaInstallation {
+    let version_output = Command::new(path)
+        .arg("-version")
+        .output()
+        .ok()
+        .map(|output| {
+            let mut text = String::from_utf8_lossy(&output.stderr).to_string();
+            if text.trim().is_empty() {
+                text = String::from_utf8_lossy(&output.stdout).to_string();
+            }
+            text
+        });
+    let version = version_output
+        .as_deref()
+        .and_then(|output| output.lines().next())
+        .map(|line| line.trim().to_string());
+    let major_version = version.as_deref().and_then(parse_java_major_version);
+
+    JavaInstallation {
+        path: path.to_string_lossy().into_owned(),
+        version,
+        major_version,
+        source: source.to_string(),
+        supports_1_8_9: major_version == Some(8),
+        supports_modern: major_version.is_some_and(|major| major >= 21),
+    }
+}
+
+fn parse_java_major_version(line: &str) -> Option<u32> {
+    let quoted = line.split('"').nth(1)?;
+    let first = quoted.split('.').next()?;
+    if first == "1" {
+        quoted.split('.').nth(1)?.parse().ok()
+    } else {
+        first.parse().ok()
+    }
+}
+
 fn auth_http_error(stage: &'static str) -> impl FnOnce(ureq::Error) -> String {
     move |error| match error {
         ureq::Error::Status(status, response) => {
@@ -715,6 +964,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             load_launcher_config,
             save_launcher_config,
+            detect_system_paths,
             load_accounts,
             start_microsoft_login,
             logout_account,

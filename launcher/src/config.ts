@@ -6,6 +6,7 @@ export type LauncherConfig = {
   selectedModpackId: string;
   accentColor: string;
   backgroundAnimation: boolean;
+  customJavaPath?: string;
 };
 
 export const defaultConfig: LauncherConfig = {
@@ -13,7 +14,8 @@ export const defaultConfig: LauncherConfig = {
   selectedVersionId: "1.8.9 Forge",
   selectedModpackId: "1.8.9 PvP",
   accentColor: "#66d9ff",
-  backgroundAnimation: true
+  backgroundAnimation: true,
+  customJavaPath: undefined
 };
 
 const fallbackKey = "helix-launcher-config";
@@ -34,4 +36,3 @@ export async function saveLauncherConfig(config: LauncherConfig): Promise<void> 
     window.localStorage.setItem(fallbackKey, JSON.stringify(config));
   }
 }
-

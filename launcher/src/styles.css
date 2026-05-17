@@ -213,7 +213,8 @@ button {
 
 .home-screen,
 .placeholder-screen,
-.accounts-screen {
+.accounts-screen,
+.versions-screen {
   display: grid;
   width: 100%;
   max-width: 920px;
@@ -371,7 +372,11 @@ h1 {
 .account-connect,
 .account-status,
 .account-card,
-.empty-state {
+.empty-state,
+.runtime-panel,
+.java-list,
+.system-summary,
+.java-row {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -624,6 +629,160 @@ h1 {
 
 .icon-button:hover {
   border-color: rgba(102, 217, 255, 0.36);
+}
+
+.versions-screen {
+  align-content: center;
+  gap: 18px;
+}
+
+.icon-label-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.icon-label-button:disabled {
+  cursor: wait;
+  opacity: 0.64;
+}
+
+.system-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 4px;
+  padding: 14px 16px;
+  color: #dbeaf4;
+}
+
+.runtime-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.runtime-panel,
+.java-list {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 18px;
+}
+
+.runtime-panel-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.runtime-panel-title h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.path-value {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 10px;
+  border: 1px solid rgba(150, 210, 240, 0.12);
+  border-radius: 7px;
+  background: rgba(4, 9, 14, 0.58);
+  color: var(--accent);
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.check-row,
+.java-target {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 34px;
+  color: #dbeaf4;
+}
+
+.java-target {
+  min-height: 54px;
+  padding: 12px;
+  border: 1px solid rgba(150, 210, 240, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.java-target strong,
+.java-target span,
+.java-version strong,
+.java-version span,
+.java-row span {
+  display: block;
+}
+
+.java-target span,
+.java-version span,
+.java-row span,
+.muted-line {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.status-icon {
+  flex: 0 0 auto;
+}
+
+.status-icon.ok {
+  color: #75f0b1;
+}
+
+.status-icon.warn {
+  color: #ffd36f;
+}
+
+.java-list {
+  align-self: start;
+}
+
+.java-row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 74px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.java-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.java-badges span {
+  padding: 5px 8px;
+  border: 1px solid rgba(102, 217, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(102, 217, 255, 0.1);
+  color: #dff7ff;
+  font-weight: 800;
+}
+
+.empty-state.compact {
+  padding: 24px 18px;
 }
 
 .setting-row {

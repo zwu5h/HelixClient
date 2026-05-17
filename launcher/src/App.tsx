@@ -1,6 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { ChevronRight, Dna, ExternalLink, LogOut, Play, Power, ShieldCheck, UserRound } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ChevronRight,
+  Coffee,
+  Dna,
+  ExternalLink,
+  Folder,
+  LogOut,
+  Play,
+  Power,
+  RefreshCw,
+  ShieldCheck,
+  UserRound
+} from "lucide-react";
 import {
   beginMicrosoftLogin,
   completeMicrosoftCallback,
@@ -16,6 +30,7 @@ import {
 } from "./auth";
 import { defaultConfig, loadLauncherConfig, saveLauncherConfig, type LauncherConfig } from "./config";
 import { launchProfile, navItems } from "./data";
+import { detectSystemPaths, type JavaInstallation, type SystemDetection } from "./system";
 
 type ConfigState = {
   config: LauncherConfig;
@@ -32,6 +47,12 @@ type AccountState = {
   exchangeResult?: AuthExchangeResult;
 };
 
+type SystemState = {
+  detection?: SystemDetection;
+  status: "idle" | "loading" | "ready" | "error";
+  message: string;
+};
+
 export function App() {
   const [activeSection, setActiveSection] = useState("home");
   const [configState, setConfigState] = useState<ConfigState>({
@@ -43,6 +64,10 @@ export function App() {
     accounts: [],
     status: "loading",
     message: "Loading accounts"
+  });
+  const [systemState, setSystemState] = useState<SystemState>({
+    status: "idle",
+    message: "System paths not scanned yet"
   });
 
   useEffect(() => {
@@ -69,6 +94,10 @@ export function App() {
     return () => {
       isMounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    void handleSystemScan();
   }, []);
 
   useEffect(() => {
@@ -253,6 +282,28 @@ export function App() {
     });
   }
 
+  async function handleSystemScan() {
+    setSystemState((current) => ({
+      ...current,
+      status: "loading",
+      message: "Scanning Minecraft folder and Java runtimes"
+    }));
+
+    try {
+      const detection = await detectSystemPaths();
+      setSystemState({
+        detection,
+        status: "ready",
+        message: detection.message
+      });
+    } catch (error) {
+      setSystemState({
+        status: "error",
+        message: `Could not scan system paths: ${String(error)}`
+      });
+    }
+  }
+
   return (
     <div className="app" data-motion={configState.config.backgroundAnimation ? "on" : "off"}>
       <div className="background-grid" />
@@ -309,6 +360,8 @@ export function App() {
             onTokenExchange={handleTokenExchange}
             onLogout={handleLogout}
           />
+        ) : activeSection === "versions" ? (
+          <VersionsScreen systemState={systemState} onRefresh={handleSystemScan} />
         ) : activeSection === "settings" ? (
           <SettingsScreen
             backgroundAnimation={configState.config.backgroundAnimation}
@@ -321,6 +374,137 @@ export function App() {
       </main>
     </div>
   );
+}
+
+function VersionsScreen({
+  systemState,
+  onRefresh
+}: {
+  systemState: SystemState;
+  onRefresh: () => void;
+}) {
+  const detection = systemState.detection;
+
+  return (
+    <section className="versions-screen" aria-labelledby="versions-title">
+      <header className="screen-header">
+        <div>
+          <p className="eyebrow">Runtime detection</p>
+          <h1 id="versions-title">Versions</h1>
+        </div>
+        <button className="icon-label-button" type="button" onClick={onRefresh} disabled={systemState.status === "loading"}>
+          <RefreshCw size={18} />
+          <span>{systemState.status === "loading" ? "Scanning" : "Refresh"}</span>
+        </button>
+      </header>
+
+      <div className="system-summary">
+        <StatusIcon ok={systemState.status === "ready" && Boolean(detection?.minecraft.exists)} />
+        <span>{systemState.message}</span>
+      </div>
+
+      <div className="runtime-grid">
+        <section className="runtime-panel" aria-labelledby="minecraft-path-title">
+          <div className="runtime-panel-title">
+            <Folder size={20} />
+            <h2 id="minecraft-path-title">Minecraft folder</h2>
+          </div>
+          {detection ? (
+            <>
+              <PathValue value={detection.minecraft.path ?? "Not resolved"} />
+              <CheckRow label=".minecraft exists" ok={detection.minecraft.exists} />
+              <CheckRow label="versions folder" ok={detection.minecraft.versionsDirExists} />
+              <CheckRow label="mods folder" ok={detection.minecraft.modsDirExists} />
+              <CheckRow label="launcher_profiles.json" ok={detection.minecraft.launcherProfilesExists} />
+            </>
+          ) : (
+            <span className="muted-line">Waiting for the first scan.</span>
+          )}
+        </section>
+
+        <section className="runtime-panel" aria-labelledby="java-target-title">
+          <div className="runtime-panel-title">
+            <Coffee size={20} />
+            <h2 id="java-target-title">Java targets</h2>
+          </div>
+          <JavaTarget label="Minecraft 1.8.9" java={detection?.java.java8} required="Java 8" />
+          <JavaTarget label="Modern Minecraft" java={detection?.java.modern} required="Java 21+" />
+        </section>
+      </div>
+
+      <section className="java-list" aria-labelledby="java-list-title">
+        <div className="runtime-panel-title">
+          <Coffee size={20} />
+          <h2 id="java-list-title">Detected Java runtimes</h2>
+        </div>
+        {detection && detection.java.installations.length > 0 ? (
+          detection.java.installations.map((java) => <JavaRow java={java} key={java.path} />)
+        ) : (
+          <div className="empty-state compact">
+            <AlertTriangle size={24} />
+            <strong>No Java runtime detected</strong>
+            <span>Install Java 8 for 1.8.9 and Java 21 or newer for modern Minecraft profiles.</span>
+          </div>
+        )}
+      </section>
+    </section>
+  );
+}
+
+function JavaTarget({
+  java,
+  label,
+  required
+}: {
+  java?: JavaInstallation;
+  label: string;
+  required: string;
+}) {
+  return (
+    <div className="java-target">
+      <StatusIcon ok={Boolean(java)} />
+      <div>
+        <strong>{label}</strong>
+        <span>{java ? java.version ?? `Java ${java.majorVersion}` : `${required} required`}</span>
+      </div>
+    </div>
+  );
+}
+
+function JavaRow({ java }: { java: JavaInstallation }) {
+  return (
+    <article className="java-row">
+      <div className="java-version">
+        <strong>{java.majorVersion ? `Java ${java.majorVersion}` : "Java"}</strong>
+        <span>{java.source}</span>
+      </div>
+      <div>
+        <span>{java.version ?? "Version output unavailable"}</span>
+        <PathValue value={java.path} />
+      </div>
+      <div className="java-badges">
+        {java.supports189 ? <span>1.8.9</span> : null}
+        {java.supportsModern ? <span>Modern</span> : null}
+      </div>
+    </article>
+  );
+}
+
+function CheckRow({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div className="check-row">
+      <StatusIcon ok={ok} />
+      <span>{label}</span>
+    </div>
+  );
+}
+
+function StatusIcon({ ok }: { ok: boolean }) {
+  return ok ? <CheckCircle2 className="status-icon ok" size={18} /> : <AlertTriangle className="status-icon warn" size={18} />;
+}
+
+function PathValue({ value }: { value: string }) {
+  return <code className="path-value">{value}</code>;
 }
 
 function HomeScreen({
