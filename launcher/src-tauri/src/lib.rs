@@ -168,6 +168,50 @@ struct JavaInstallation {
     supports_modern: bool,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LaunchPlanRequest {
+    profile_id: String,
+    profile_name: String,
+    version_id: String,
+    version_label: String,
+    minecraft_version: String,
+    loader: String,
+    modpack_id: String,
+    modpack_name: String,
+    java_target: String,
+    memory_mb: u32,
+    resolution: String,
+    account_username: Option<String>,
+    account_uuid: Option<String>,
+    owns_java: bool,
+    required_mods: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LaunchPlan {
+    session_id: String,
+    dry_run: bool,
+    profile_name: String,
+    minecraft_dir: Option<String>,
+    game_dir: String,
+    java_path: Option<String>,
+    arguments_preview: Vec<String>,
+    stages: Vec<LaunchStage>,
+    blockers: Vec<String>,
+    message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LaunchStage {
+    id: String,
+    label: String,
+    status: String,
+    detail: String,
+}
+
 impl Default for LauncherConfig {
     fn default() -> Self {
         Self {
@@ -245,6 +289,116 @@ fn detect_system_paths(app: tauri::AppHandle) -> Result<SystemDetection, String>
         minecraft,
         java,
         message: message.to_string(),
+    })
+}
+
+#[tauri::command]
+fn prepare_launch_plan(
+    app: tauri::AppHandle,
+    request: LaunchPlanRequest,
+) -> Result<LaunchPlan, String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| format!("Could not resolve config directory: {error}"))?;
+    let game_dir = config_dir
+        .join("profiles")
+        .join(&request.profile_id)
+        .to_string_lossy()
+        .into_owned();
+    let system = detect_system_paths(app)?;
+    let java = if request.java_target == "Java 8" {
+        system.java.java8.clone()
+    } else {
+        system.java.modern.clone()
+    };
+    let mut blockers = Vec::new();
+
+    if request
+        .account_username
+        .as_deref()
+        .unwrap_or_default()
+        .is_empty()
+    {
+        blockers.push("Microsoft account is missing.".to_string());
+    }
+    if !request.owns_java {
+        blockers.push("Minecraft Java ownership is not validated.".to_string());
+    }
+    if !system.minecraft.exists {
+        blockers.push("Default .minecraft folder is missing.".to_string());
+    }
+    if java.is_none() {
+        blockers.push(format!("{} runtime is missing.", request.java_target));
+    }
+
+    let arguments_preview = build_arguments_preview(&request, &game_dir);
+    let stages = vec![
+        launch_stage(
+            "preflight",
+            "Preflight",
+            blockers.is_empty(),
+            if blockers.is_empty() {
+                "Account, ownership, Java and paths are ready.".to_string()
+            } else {
+                blockers.join(" ")
+            },
+        ),
+        launch_stage(
+            "directories",
+            "Prepare directories",
+            system.minecraft.exists,
+            format!("Game directory: {game_dir}"),
+        ),
+        launch_stage(
+            "versions",
+            "Resolve Minecraft version",
+            true,
+            format!(
+                "{} using {} loader ({})",
+                request.minecraft_version, request.loader, request.version_id
+            ),
+        ),
+        launch_stage(
+            "modpack",
+            "Apply modpack manifest",
+            true,
+            if request.required_mods.is_empty() {
+                format!("{} has no required mod entries.", request.modpack_name)
+            } else {
+                format!(
+                    "{} ({}) requires {} mods: {}",
+                    request.modpack_name,
+                    request.modpack_id,
+                    request.required_mods.len(),
+                    request.required_mods.join(", ")
+                )
+            },
+        ),
+        launch_stage(
+            "process",
+            "Spawn Minecraft process",
+            blockers.is_empty(),
+            "Dry run only. Process execution is intentionally disabled in this step.".to_string(),
+        ),
+    ];
+    let message = if blockers.is_empty() {
+        "Launch plan prepared. Execution layer is next.".to_string()
+    } else {
+        format!("Launch plan prepared with {} blocker(s).", blockers.len())
+    };
+
+    Ok(LaunchPlan {
+        session_id: random_url_token(16),
+        dry_run: true,
+        profile_name: request.profile_name,
+        minecraft_dir: system.minecraft.path,
+        game_dir,
+        java_path: java.map(|java| java.path),
+        arguments_preview,
+        stages,
+        blockers,
+        message,
     })
 }
 
@@ -872,6 +1026,52 @@ fn parse_java_major_version(line: &str) -> Option<u32> {
     }
 }
 
+fn build_arguments_preview(request: &LaunchPlanRequest, game_dir: &str) -> Vec<String> {
+    vec![
+        format!("-Xmx{}M", request.memory_mb),
+        "-Dhelix.launcher=true".to_string(),
+        "-Dhelix.dryRun=true".to_string(),
+        "net.minecraft.client.main.Main".to_string(),
+        "--username".to_string(),
+        request
+            .account_username
+            .clone()
+            .unwrap_or_else(|| "offline-preview".to_string()),
+        "--uuid".to_string(),
+        request
+            .account_uuid
+            .clone()
+            .unwrap_or_else(|| "00000000000000000000000000000000".to_string()),
+        "--version".to_string(),
+        request.version_label.clone(),
+        "--gameDir".to_string(),
+        game_dir.to_string(),
+        "--width".to_string(),
+        request
+            .resolution
+            .split('x')
+            .next()
+            .unwrap_or("1280")
+            .to_string(),
+        "--height".to_string(),
+        request
+            .resolution
+            .split('x')
+            .nth(1)
+            .unwrap_or("720")
+            .to_string(),
+    ]
+}
+
+fn launch_stage(id: &str, label: &str, ok: bool, detail: String) -> LaunchStage {
+    LaunchStage {
+        id: id.to_string(),
+        label: label.to_string(),
+        status: if ok { "ready" } else { "blocked" }.to_string(),
+        detail,
+    }
+}
+
 fn auth_http_error(stage: &'static str) -> impl FnOnce(ureq::Error) -> String {
     move |error| match error {
         ureq::Error::Status(status, response) => {
@@ -965,6 +1165,7 @@ pub fn run() {
             load_launcher_config,
             save_launcher_config,
             detect_system_paths,
+            prepare_launch_plan,
             load_accounts,
             start_microsoft_login,
             logout_account,

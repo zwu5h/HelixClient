@@ -335,12 +335,6 @@ h1 {
   font-weight: 800;
 }
 
-.play-button:disabled {
-  cursor: not-allowed;
-  filter: saturate(0.45);
-  opacity: 0.64;
-}
-
 .status-line {
   margin: 18px 0 0;
   color: #b5c7d4;
@@ -382,6 +376,100 @@ h1 {
 }
 
 .preflight-check span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.launch-plan-panel {
+  display: grid;
+  gap: 12px;
+  max-width: 680px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(11, 18, 27, 0.72);
+  backdrop-filter: blur(18px);
+}
+
+.launch-plan-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.launch-plan-header strong,
+.launch-plan-header span {
+  display: block;
+}
+
+.launch-plan-header span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.launch-plan-meta {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+}
+
+.launch-plan-meta div {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid rgba(150, 210, 240, 0.12);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.launch-plan-meta dt {
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.launch-plan-meta dd {
+  margin: 0;
+  overflow: hidden;
+  color: #edf8ff;
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.launch-stage-list {
+  display: grid;
+  gap: 8px;
+}
+
+.launch-stage {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+}
+
+.launch-stage strong,
+.launch-stage span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.launch-stage strong {
+  margin-bottom: 3px;
+  font-size: 13px;
+}
+
+.launch-stage span {
   color: var(--muted);
   font-size: 12px;
 }

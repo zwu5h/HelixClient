@@ -1,6 +1,7 @@
 import type { AccountSummary } from "./auth";
 import type { LaunchProfile, ModpackOption, VersionOption } from "./profiles";
 import type { SystemDetection } from "./system";
+import { invoke } from "@tauri-apps/api/core";
 
 export type LaunchCheck = {
   id: string;
@@ -13,6 +14,44 @@ export type LaunchReadiness = {
   ready: boolean;
   message: string;
   checks: LaunchCheck[];
+};
+
+export type LaunchPlanRequest = {
+  profileId: string;
+  profileName: string;
+  versionId: string;
+  versionLabel: string;
+  minecraftVersion: string;
+  loader: string;
+  modpackId: string;
+  modpackName: string;
+  javaTarget: string;
+  memoryMb: number;
+  resolution: string;
+  accountUsername?: string;
+  accountUuid?: string;
+  ownsJava: boolean;
+  requiredMods: string[];
+};
+
+export type LaunchStage = {
+  id: string;
+  label: string;
+  status: "ready" | "blocked";
+  detail: string;
+};
+
+export type LaunchPlan = {
+  sessionId: string;
+  dryRun: boolean;
+  profileName: string;
+  minecraftDir?: string;
+  gameDir: string;
+  javaPath?: string;
+  argumentsPreview: string[];
+  stages: LaunchStage[];
+  blockers: string[];
+  message: string;
 };
 
 export function evaluateLaunchReadiness({
@@ -81,4 +120,8 @@ export function evaluateLaunchReadiness({
     ready: !firstBlocker,
     message: firstBlocker ? firstBlocker.detail : "Preflight passed. Ready for launch pipeline."
   };
+}
+
+export async function prepareLaunchPlan(request: LaunchPlanRequest): Promise<LaunchPlan> {
+  return await invoke<LaunchPlan>("prepare_launch_plan", { request });
 }

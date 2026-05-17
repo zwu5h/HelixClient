@@ -31,7 +31,7 @@ import {
 } from "./auth";
 import { defaultConfig, loadLauncherConfig, saveLauncherConfig, type LauncherConfig } from "./config";
 import { navItems } from "./data";
-import { evaluateLaunchReadiness, type LaunchReadiness } from "./launch";
+import { evaluateLaunchReadiness, prepareLaunchPlan, type LaunchPlan, type LaunchReadiness } from "./launch";
 import {
   getModpack,
   getProfile,
@@ -65,6 +65,12 @@ type SystemState = {
   message: string;
 };
 
+type LaunchState = {
+  status: "idle" | "loading" | "ready" | "error";
+  message: string;
+  plan?: LaunchPlan;
+};
+
 export function App() {
   const [activeSection, setActiveSection] = useState("home");
   const [configState, setConfigState] = useState<ConfigState>({
@@ -80,6 +86,10 @@ export function App() {
   const [systemState, setSystemState] = useState<SystemState>({
     status: "idle",
     message: "System paths not scanned yet"
+  });
+  const [launchState, setLaunchState] = useState<LaunchState>({
+    status: "idle",
+    message: "No launch plan prepared yet"
   });
 
   useEffect(() => {
@@ -348,13 +358,51 @@ export function App() {
     }
   }
 
-  function handleLaunchAttempt() {
-    setConfigState((current) => ({
+  async function handleLaunchAttempt() {
+    setLaunchState((current) => ({
       ...current,
-      status: launchReadiness.ready
-        ? "Preflight passed. Download and process launch pipeline is next."
-        : `Launch blocked: ${launchReadiness.message}`
+      status: "loading",
+      message: "Preparing launch plan"
     }));
+
+    try {
+      const plan = await prepareLaunchPlan({
+        accountUsername: activeAccount?.username,
+        accountUuid: activeAccount?.uuid,
+        javaTarget: selectedProfile.javaTarget,
+        loader: selectedProfile.loader,
+        memoryMb: selectedProfile.memoryMb,
+        minecraftVersion: selectedProfile.minecraftVersion,
+        modpackId: selectedModpack.id,
+        modpackName: selectedModpack.name,
+        ownsJava: Boolean(activeAccount?.ownsJava),
+        profileId: selectedProfile.id,
+        profileName: selectedProfile.name,
+        requiredMods: selectedModpack.mods.filter((mod) => mod.required).map((mod) => mod.name),
+        resolution: selectedProfile.resolution,
+        versionId: selectedVersion.id,
+        versionLabel: selectedVersion.label
+      });
+      setLaunchState({
+        plan,
+        status: plan.blockers.length === 0 ? "ready" : "error",
+        message: plan.message
+      });
+      setConfigState((current) => ({
+        ...current,
+        status: plan.message
+      }));
+    } catch (error) {
+      const message = `Could not prepare launch plan: ${String(error)}`;
+      setLaunchState({
+        status: "error",
+        message
+      });
+      setConfigState((current) => ({
+        ...current,
+        status: message
+      }));
+    }
   }
 
   return (
@@ -409,6 +457,7 @@ export function App() {
             loaded={configState.loaded}
             modpackName={selectedModpack.name}
             profile={selectedProfile}
+            launchState={launchState}
             readiness={launchReadiness}
             status={configState.status}
             versionLabel={selectedVersion.label}
@@ -585,6 +634,7 @@ function HomeScreen({
   loaded,
   modpackName,
   profile,
+  launchState,
   readiness,
   versionLabel,
   status,
@@ -594,6 +644,7 @@ function HomeScreen({
   loaded: boolean;
   modpackName: string;
   profile: LaunchProfile;
+  launchState: LaunchState;
   readiness: LaunchReadiness;
   status: string;
   versionLabel: string;
@@ -630,7 +681,7 @@ function HomeScreen({
           </div>
         </dl>
 
-        <button className="play-button" type="button" disabled={!readiness.ready} onClick={onLaunchAttempt}>
+        <button className="play-button" type="button" onClick={onLaunchAttempt}>
           <Play size={34} fill="currentColor" />
           <span>Play</span>
         </button>
@@ -647,11 +698,56 @@ function HomeScreen({
             </div>
           ))}
         </div>
+        <LaunchPlanPanel launchState={launchState} />
       </div>
 
       <footer className="home-footer">
         <span>{profile.status}</span>
       </footer>
+    </section>
+  );
+}
+
+function LaunchPlanPanel({ launchState }: { launchState: LaunchState }) {
+  if (launchState.status === "idle") {
+    return null;
+  }
+
+  return (
+    <section className="launch-plan-panel" aria-label="Launch plan">
+      <div className="launch-plan-header">
+        <strong>Launch plan</strong>
+        <span>{launchState.message}</span>
+      </div>
+      {launchState.plan ? (
+        <>
+          <dl className="launch-plan-meta">
+            <div>
+              <dt>Session</dt>
+              <dd>{launchState.plan.sessionId}</dd>
+            </div>
+            <div>
+              <dt>Java</dt>
+              <dd>{launchState.plan.javaPath ?? "Missing"}</dd>
+            </div>
+            <div>
+              <dt>Game dir</dt>
+              <dd>{launchState.plan.gameDir}</dd>
+            </div>
+          </dl>
+          <div className="launch-stage-list">
+            {launchState.plan.stages.map((stage) => (
+              <div className="launch-stage" key={stage.id}>
+                <StatusIcon ok={stage.status === "ready"} />
+                <div>
+                  <strong>{stage.label}</strong>
+                  <span>{stage.detail}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }
