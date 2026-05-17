@@ -172,8 +172,8 @@ impl Default for LauncherConfig {
     fn default() -> Self {
         Self {
             selected_profile_id: "forge-1-8-9-pvp".to_string(),
-            selected_version_id: "1.8.9 Forge".to_string(),
-            selected_modpack_id: "1.8.9 PvP".to_string(),
+            selected_version_id: "1.8.9-forge".to_string(),
+            selected_modpack_id: "pvp-1-8-9".to_string(),
             accent_color: "#66d9ff".to_string(),
             background_animation: true,
             custom_java_path: None,

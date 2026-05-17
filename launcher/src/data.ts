@@ -5,6 +5,7 @@ import {
   Home,
   ListVideo,
   Palette,
+  SlidersHorizontal,
   Settings,
   Sparkles,
   UserRound
@@ -19,6 +20,7 @@ export type NavItem = {
 
 export const navItems: NavItem[] = [
   { id: "home", label: "Home", icon: Home },
+  { id: "profiles", label: "Profiles", icon: SlidersHorizontal },
   { id: "versions", label: "Versions", icon: BadgeCheck },
   { id: "modpacks", label: "Modpacks", icon: Boxes },
   { id: "hud", label: "HUD", icon: ListVideo },
@@ -28,12 +30,3 @@ export const navItems: NavItem[] = [
   { id: "settings", label: "Settings", icon: Settings },
   { id: "accounts", label: "Accounts", icon: UserRound }
 ];
-
-export const launchProfile = {
-  name: "Helix 1.8.9 PvP",
-  version: "1.8.9 Forge",
-  modpack: "1.8.9 PvP",
-  status: "Ready for launcher foundation checks",
-  account: "No Microsoft account connected"
-};
-

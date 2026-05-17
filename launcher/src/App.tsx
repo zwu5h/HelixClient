@@ -13,6 +13,7 @@ import {
   Power,
   RefreshCw,
   ShieldCheck,
+  SlidersHorizontal,
   UserRound
 } from "lucide-react";
 import {
@@ -29,7 +30,8 @@ import {
   type AuthStatus
 } from "./auth";
 import { defaultConfig, loadLauncherConfig, saveLauncherConfig, type LauncherConfig } from "./config";
-import { launchProfile, navItems } from "./data";
+import { navItems } from "./data";
+import { getModpack, getProfile, getVersion, launchProfiles, modpacks, type LaunchProfile } from "./profiles";
 import { detectSystemPaths, type JavaInstallation, type SystemDetection } from "./system";
 
 type ConfigState = {
@@ -158,6 +160,9 @@ export function App() {
   );
   const activeAccount = accountState.accounts.find((account) => account.active) ?? accountState.accounts[0];
   const accountLabel = activeAccount?.username ?? "Offline setup";
+  const selectedProfile = getProfile(configState.config.selectedProfileId);
+  const selectedVersion = getVersion(configState.config.selectedVersionId || selectedProfile.versionId);
+  const selectedModpack = getModpack(configState.config.selectedModpackId || selectedProfile.modpackId);
 
   async function toggleAnimation() {
     const nextConfig = {
@@ -176,6 +181,28 @@ export function App() {
     setConfigState((current) => ({
       ...current,
       status: "Launcher config saved"
+    }));
+  }
+
+  async function selectProfile(profile: LaunchProfile) {
+    const nextConfig = {
+      ...configState.config,
+      selectedProfileId: profile.id,
+      selectedVersionId: profile.versionId,
+      selectedModpackId: profile.modpackId
+    };
+
+    setConfigState((current) => ({
+      ...current,
+      config: nextConfig,
+      status: `Selected ${profile.name}`
+    }));
+
+    await saveLauncherConfig(nextConfig);
+
+    setConfigState((current) => ({
+      ...current,
+      status: `${profile.name} saved as active profile`
     }));
   }
 
@@ -351,7 +378,14 @@ export function App() {
 
       <main className="content">
         {activeSection === "home" ? (
-          <HomeScreen accountLabel={activeAccount?.username ?? launchProfile.account} status={configState.status} loaded={configState.loaded} />
+          <HomeScreen
+            accountLabel={activeAccount?.username ?? "No Microsoft account connected"}
+            loaded={configState.loaded}
+            modpackName={selectedModpack.name}
+            profile={selectedProfile}
+            status={configState.status}
+            versionLabel={selectedVersion.label}
+          />
         ) : activeSection === "accounts" ? (
           <AccountsScreen
             accountState={accountState}
@@ -362,6 +396,14 @@ export function App() {
           />
         ) : activeSection === "versions" ? (
           <VersionsScreen systemState={systemState} onRefresh={handleSystemScan} />
+        ) : activeSection === "profiles" ? (
+          <ProfilesScreen
+            selectedProfileId={selectedProfile.id}
+            status={configState.status}
+            onSelectProfile={selectProfile}
+          />
+        ) : activeSection === "modpacks" ? (
+          <ModpacksScreen selectedModpackId={selectedModpack.id} />
         ) : activeSection === "settings" ? (
           <SettingsScreen
             backgroundAnimation={configState.config.backgroundAnimation}
@@ -510,11 +552,17 @@ function PathValue({ value }: { value: string }) {
 function HomeScreen({
   accountLabel,
   loaded,
+  modpackName,
+  profile,
+  versionLabel,
   status
 }: {
   accountLabel: string;
   loaded: boolean;
+  modpackName: string;
+  profile: LaunchProfile;
   status: string;
+  versionLabel: string;
 }) {
   return (
     <section className="home-screen" aria-labelledby="home-title">
@@ -531,15 +579,15 @@ function HomeScreen({
 
       <div className="launch-focus">
         <p className="launch-label">Selected launch profile</p>
-        <h2>{launchProfile.name}</h2>
+        <h2>{profile.name}</h2>
         <dl className="launch-meta">
           <div>
             <dt>Version</dt>
-            <dd>{launchProfile.version}</dd>
+            <dd>{versionLabel}</dd>
           </div>
           <div>
             <dt>Modpack</dt>
-            <dd>{launchProfile.modpack}</dd>
+            <dd>{modpackName}</dd>
           </div>
           <div>
             <dt>Account</dt>
@@ -556,8 +604,117 @@ function HomeScreen({
       </div>
 
       <footer className="home-footer">
-        <span>{launchProfile.status}</span>
+        <span>{profile.status}</span>
       </footer>
+    </section>
+  );
+}
+
+function ProfilesScreen({
+  selectedProfileId,
+  status,
+  onSelectProfile
+}: {
+  selectedProfileId: string;
+  status: string;
+  onSelectProfile: (profile: LaunchProfile) => void;
+}) {
+  return (
+    <section className="profiles-screen" aria-labelledby="profiles-title">
+      <header className="screen-header">
+        <div>
+          <p className="eyebrow">Launch profiles</p>
+          <h1 id="profiles-title">Profiles</h1>
+        </div>
+        <div className="profile-pill">
+          <SlidersHorizontal size={16} />
+          <span>{status}</span>
+        </div>
+      </header>
+
+      <div className="profile-grid">
+        {launchProfiles.map((profile) => {
+          const active = profile.id === selectedProfileId;
+          const version = getVersion(profile.versionId);
+          const modpack = getModpack(profile.modpackId);
+
+          return (
+            <article className={active ? "profile-card active" : "profile-card"} key={profile.id}>
+              <div>
+                <span className="profile-kicker">{profile.loader}</span>
+                <h2>{profile.name}</h2>
+                <p>{profile.status}</p>
+              </div>
+              <dl className="profile-details">
+                <div>
+                  <dt>Minecraft</dt>
+                  <dd>{version.minecraftVersion}</dd>
+                </div>
+                <div>
+                  <dt>Modpack</dt>
+                  <dd>{modpack.name}</dd>
+                </div>
+                <div>
+                  <dt>Java</dt>
+                  <dd>{profile.javaTarget}</dd>
+                </div>
+                <div>
+                  <dt>Memory</dt>
+                  <dd>{profile.memoryMb} MB</dd>
+                </div>
+              </dl>
+              <button className="secondary-action" type="button" disabled={active} onClick={() => onSelectProfile(profile)}>
+                {active ? "Selected" : "Select profile"}
+              </button>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function ModpacksScreen({ selectedModpackId }: { selectedModpackId: string }) {
+  return (
+    <section className="modpacks-screen" aria-labelledby="modpacks-title">
+      <header className="screen-header">
+        <div>
+          <p className="eyebrow">Modpack catalog</p>
+          <h1 id="modpacks-title">Modpacks</h1>
+        </div>
+        <div className="profile-pill">
+          <Folder size={16} />
+          <span>Manifest layer next</span>
+        </div>
+      </header>
+
+      <div className="modpack-list">
+        {modpacks.map((modpack) => {
+          const version = getVersion(modpack.versionId);
+          return (
+            <article className={modpack.id === selectedModpackId ? "modpack-row active" : "modpack-row"} key={modpack.id}>
+              <div>
+                <strong>{modpack.name}</strong>
+                <span>{modpack.summary}</span>
+              </div>
+              <dl>
+                <div>
+                  <dt>Version</dt>
+                  <dd>{version.label}</dd>
+                </div>
+                <div>
+                  <dt>Mods</dt>
+                  <dd>{modpack.enabledMods}</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd>{modpack.status}</dd>
+                </div>
+              </dl>
+            </article>
+          );
+        })}
+      </div>
     </section>
   );
 }

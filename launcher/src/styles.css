@@ -214,7 +214,9 @@ button {
 .home-screen,
 .placeholder-screen,
 .accounts-screen,
-.versions-screen {
+.versions-screen,
+.profiles-screen,
+.modpacks-screen {
   display: grid;
   width: 100%;
   max-width: 920px;
@@ -376,7 +378,9 @@ h1 {
 .runtime-panel,
 .java-list,
 .system-summary,
-.java-row {
+.java-row,
+.profile-card,
+.modpack-row {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -783,6 +787,122 @@ h1 {
 
 .empty-state.compact {
   padding: 24px 18px;
+}
+
+.profiles-screen,
+.modpacks-screen {
+  align-content: center;
+  gap: 18px;
+}
+
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.profile-card {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 18px;
+}
+
+.profile-card.active,
+.modpack-row.active {
+  border-color: rgba(102, 217, 255, 0.48);
+  background: rgba(102, 217, 255, 0.1);
+}
+
+.profile-kicker {
+  display: inline-flex;
+  margin-bottom: 10px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.profile-card h2 {
+  margin-bottom: 8px;
+  font-size: 24px;
+  line-height: 1.08;
+}
+
+.profile-card p {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.profile-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.profile-details div,
+.modpack-row dl div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(150, 210, 240, 0.12);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.profile-details dt,
+.modpack-row dt {
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.profile-details dd,
+.modpack-row dd {
+  margin: 0;
+  overflow: hidden;
+  color: #edf8ff;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modpack-list {
+  display: grid;
+  gap: 12px;
+}
+
+.modpack-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.75fr);
+  align-items: center;
+  gap: 18px;
+  min-height: 112px;
+  padding: 18px;
+}
+
+.modpack-row strong,
+.modpack-row span {
+  display: block;
+}
+
+.modpack-row strong {
+  margin-bottom: 7px;
+  font-size: 20px;
+}
+
+.modpack-row span {
+  max-width: 460px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.modpack-row dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
 }
 
 .setting-row {

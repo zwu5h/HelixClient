@@ -11,8 +11,8 @@ export type LauncherConfig = {
 
 export const defaultConfig: LauncherConfig = {
   selectedProfileId: "forge-1-8-9-pvp",
-  selectedVersionId: "1.8.9 Forge",
-  selectedModpackId: "1.8.9 PvP",
+  selectedVersionId: "1.8.9-forge",
+  selectedModpackId: "pvp-1-8-9",
   accentColor: "#66d9ff",
   backgroundAnimation: true,
   customJavaPath: undefined
