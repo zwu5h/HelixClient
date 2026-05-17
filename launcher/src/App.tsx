@@ -8,6 +8,7 @@ import {
   Dna,
   ExternalLink,
   Folder,
+  HardDrive,
   LogOut,
   ListChecks,
   Play,
@@ -39,6 +40,7 @@ import {
   type LaunchPlan,
   type LaunchReadiness
 } from "./launch";
+import { prepareLocalLibrary, type LocalLibraryStatus } from "./localLibrary";
 import {
   getModpack,
   getProfile,
@@ -46,6 +48,7 @@ import {
   getVersion,
   launchProfiles,
   modpacks,
+  versions,
   type LaunchProfile,
   type ModpackOption
 } from "./profiles";
@@ -78,6 +81,12 @@ type LaunchState = {
   plan?: LaunchPlan;
 };
 
+type LibraryState = {
+  status: "idle" | "loading" | "ready" | "error";
+  message: string;
+  result?: LocalLibraryStatus;
+};
+
 const launchHistoryKey = "helix-launch-history";
 
 export function App() {
@@ -101,6 +110,10 @@ export function App() {
     message: "No launch plan prepared yet"
   });
   const [launchHistory, setLaunchHistory] = useState<LaunchHistoryEntry[]>([]);
+  const [libraryState, setLibraryState] = useState<LibraryState>({
+    status: "idle",
+    message: "Local library not prepared yet"
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -502,6 +515,41 @@ export function App() {
     window.localStorage.removeItem(launchHistoryKey);
   }
 
+  async function handlePrepareLocalLibrary() {
+    setLibraryState((current) => ({
+      ...current,
+      status: "loading",
+      message: "Preparing local library"
+    }));
+
+    try {
+      const result = await prepareLocalLibrary({
+        modpacks,
+        profiles: launchProfiles,
+        versions
+      });
+      setLibraryState({
+        result,
+        status: "ready",
+        message: result.message
+      });
+      setConfigState((current) => ({
+        ...current,
+        status: result.message
+      }));
+    } catch (error) {
+      const message = `Could not prepare local library: ${String(error)}`;
+      setLibraryState({
+        status: "error",
+        message
+      });
+      setConfigState((current) => ({
+        ...current,
+        status: message
+      }));
+    }
+  }
+
   return (
     <div className="app" data-motion={configState.config.backgroundAnimation ? "on" : "off"}>
       <div className="background-grid" />
@@ -578,7 +626,9 @@ export function App() {
           />
         ) : activeSection === "modpacks" ? (
           <ModpacksScreen
+            libraryState={libraryState}
             selectedModpackId={selectedModpack.id}
+            onPrepareLocalLibrary={handlePrepareLocalLibrary}
             onSelectModpack={(modpack) => selectProfile(getProfileForModpack(modpack.id))}
           />
         ) : activeSection === "settings" ? (
@@ -920,10 +970,14 @@ function ProfilesScreen({
 }
 
 function ModpacksScreen({
+  libraryState,
   selectedModpackId,
+  onPrepareLocalLibrary,
   onSelectModpack
 }: {
+  libraryState: LibraryState;
   selectedModpackId: string;
+  onPrepareLocalLibrary: () => void;
   onSelectModpack: (modpack: ModpackOption) => void;
 }) {
   return (
@@ -933,11 +987,13 @@ function ModpacksScreen({
           <p className="eyebrow">Modpack catalog</p>
           <h1 id="modpacks-title">Modpacks</h1>
         </div>
-        <div className="profile-pill">
-          <Folder size={16} />
-          <span>Local manifests</span>
-        </div>
+        <button className="icon-label-button" type="button" onClick={onPrepareLocalLibrary} disabled={libraryState.status === "loading"}>
+          <HardDrive size={18} />
+          <span>{libraryState.status === "loading" ? "Preparing" : "Prepare files"}</span>
+        </button>
       </header>
+
+      <LocalLibraryPanel libraryState={libraryState} />
 
       <div className="modpack-list">
         {modpacks.map((modpack) => {
@@ -988,6 +1044,34 @@ function ModpacksScreen({
             </article>
           );
         })}
+      </div>
+    </section>
+  );
+}
+
+function LocalLibraryPanel({ libraryState }: { libraryState: LibraryState }) {
+  if (libraryState.status === "idle") {
+    return (
+      <section className="library-panel" aria-label="Local library status">
+        <HardDrive size={20} />
+        <div>
+          <strong>Local library</strong>
+          <span>Prepare app data folders and write profile, version and modpack manifests.</span>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="library-panel" aria-label="Local library status">
+      <StatusIcon ok={libraryState.status === "ready"} />
+      <div>
+        <strong>{libraryState.message}</strong>
+        <span>
+          {libraryState.result
+            ? `${libraryState.result.writtenFiles.length} manifests written in ${libraryState.result.rootDir}`
+            : "No files written yet"}
+        </span>
       </div>
     </section>
   );

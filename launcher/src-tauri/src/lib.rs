@@ -214,6 +214,23 @@ struct LaunchStage {
     detail: String,
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalLibraryRequest {
+    profiles: Vec<serde_json::Value>,
+    versions: Vec<serde_json::Value>,
+    modpacks: Vec<serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalLibraryStatus {
+    root_dir: String,
+    created_dirs: Vec<String>,
+    written_files: Vec<String>,
+    message: String,
+}
+
 impl Default for LauncherConfig {
     fn default() -> Self {
         Self {
@@ -402,6 +419,76 @@ fn prepare_launch_plan(
         stages,
         blockers,
         message,
+    })
+}
+
+#[tauri::command]
+fn prepare_local_library(
+    app: tauri::AppHandle,
+    request: LocalLibraryRequest,
+) -> Result<LocalLibraryStatus, String> {
+    let root = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("Could not resolve app data directory: {error}"))?;
+    let mut created_dirs = Vec::new();
+    let mut written_files = Vec::new();
+
+    for path in local_library_dirs(&root) {
+        fs::create_dir_all(&path)
+            .map_err(|error| format!("Could not create {}: {error}", path.display()))?;
+        created_dirs.push(path.to_string_lossy().into_owned());
+    }
+
+    write_manifest_collection(
+        &root.join("manifests").join("profiles"),
+        &request.profiles,
+        &mut written_files,
+    )?;
+    write_manifest_collection(
+        &root.join("manifests").join("versions"),
+        &request.versions,
+        &mut written_files,
+    )?;
+    write_manifest_collection(
+        &root.join("manifests").join("modpacks"),
+        &request.modpacks,
+        &mut written_files,
+    )?;
+
+    for profile in &request.profiles {
+        let Some(profile_id) = manifest_id(profile) else {
+            continue;
+        };
+        for segment in ["mods", "config", "logs", "resourcepacks"] {
+            let path = root.join("profiles").join(&profile_id).join(segment);
+            fs::create_dir_all(&path)
+                .map_err(|error| format!("Could not create {}: {error}", path.display()))?;
+            created_dirs.push(path.to_string_lossy().into_owned());
+        }
+    }
+
+    let index = json!({
+        "generatedAt": chrono_like_timestamp(),
+        "profileCount": request.profiles.len(),
+        "versionCount": request.versions.len(),
+        "modpackCount": request.modpacks.len(),
+        "schemaVersion": 1
+    });
+    let index_path = root.join("manifests").join("index.json");
+    fs::write(
+        &index_path,
+        serde_json::to_string_pretty(&index)
+            .map_err(|error| format!("Could not serialize manifest index: {error}"))?,
+    )
+    .map_err(|error| format!("Could not write {}: {error}", index_path.display()))?;
+    written_files.push(index_path.to_string_lossy().into_owned());
+
+    Ok(LocalLibraryStatus {
+        root_dir: root.to_string_lossy().into_owned(),
+        created_dirs,
+        written_files,
+        message: "Local Helix library prepared.".to_string(),
     })
 }
 
@@ -1037,6 +1124,65 @@ fn parse_java_major_version(line: &str) -> Option<u32> {
     }
 }
 
+fn local_library_dirs(root: &Path) -> Vec<PathBuf> {
+    [
+        "cache",
+        "cache/assets",
+        "cache/downloads",
+        "logs",
+        "manifests",
+        "manifests/modpacks",
+        "manifests/profiles",
+        "manifests/versions",
+        "profiles",
+        "runtime",
+        "runtime/mods",
+        "versions",
+    ]
+    .iter()
+    .map(|segment| root.join(segment))
+    .collect()
+}
+
+fn write_manifest_collection(
+    dir: &Path,
+    manifests: &[serde_json::Value],
+    written_files: &mut Vec<String>,
+) -> Result<(), String> {
+    for manifest in manifests {
+        let id =
+            manifest_id(manifest).ok_or_else(|| "Manifest is missing an id field.".to_string())?;
+        let path = dir.join(format!("{id}.json"));
+        let raw = serde_json::to_string_pretty(manifest)
+            .map_err(|error| format!("Could not serialize manifest {id}: {error}"))?;
+        fs::write(&path, raw)
+            .map_err(|error| format!("Could not write {}: {error}", path.display()))?;
+        written_files.push(path.to_string_lossy().into_owned());
+    }
+    Ok(())
+}
+
+fn manifest_id(value: &serde_json::Value) -> Option<String> {
+    value
+        .get("id")
+        .and_then(|value| value.as_str())
+        .filter(|id| !id.trim().is_empty())
+        .map(|id| {
+            id.chars()
+                .filter(|character| {
+                    character.is_ascii_alphanumeric() || matches!(character, '-' | '_')
+                })
+                .collect()
+        })
+}
+
+fn chrono_like_timestamp() -> String {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|duration| duration.as_secs().to_string())
+        .unwrap_or_else(|_| "0".to_string())
+}
+
 fn build_arguments_preview(request: &LaunchPlanRequest, game_dir: &str) -> Vec<String> {
     vec![
         format!("-Xmx{}M", request.memory_mb),
@@ -1177,6 +1323,7 @@ pub fn run() {
             save_launcher_config,
             detect_system_paths,
             prepare_launch_plan,
+            prepare_local_library,
             load_accounts,
             start_microsoft_login,
             logout_account,

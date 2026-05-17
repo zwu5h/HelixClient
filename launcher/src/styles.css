@@ -521,6 +521,7 @@ h1 {
 .java-row,
 .profile-card,
 .modpack-row,
+.library-panel,
 .log-row {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -1013,6 +1014,32 @@ h1 {
 .modpack-list {
   display: grid;
   gap: 12px;
+}
+
+.library-panel {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 14px 16px;
+}
+
+.library-panel strong,
+.library-panel span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.library-panel strong {
+  margin-bottom: 4px;
+}
+
+.library-panel span {
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .modpack-row {
