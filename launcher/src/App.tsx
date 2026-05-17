@@ -31,6 +31,7 @@ import {
 } from "./auth";
 import { defaultConfig, loadLauncherConfig, saveLauncherConfig, type LauncherConfig } from "./config";
 import { navItems } from "./data";
+import { evaluateLaunchReadiness, type LaunchReadiness } from "./launch";
 import {
   getModpack,
   getProfile,
@@ -172,6 +173,13 @@ export function App() {
   const selectedProfile = getProfile(configState.config.selectedProfileId);
   const selectedVersion = getVersion(configState.config.selectedVersionId || selectedProfile.versionId);
   const selectedModpack = getModpack(configState.config.selectedModpackId || selectedProfile.modpackId);
+  const launchReadiness = evaluateLaunchReadiness({
+    account: activeAccount,
+    modpack: selectedModpack,
+    profile: selectedProfile,
+    system: systemState.detection,
+    version: selectedVersion
+  });
 
   async function toggleAnimation() {
     const nextConfig = {
@@ -340,6 +348,15 @@ export function App() {
     }
   }
 
+  function handleLaunchAttempt() {
+    setConfigState((current) => ({
+      ...current,
+      status: launchReadiness.ready
+        ? "Preflight passed. Download and process launch pipeline is next."
+        : `Launch blocked: ${launchReadiness.message}`
+    }));
+  }
+
   return (
     <div className="app" data-motion={configState.config.backgroundAnimation ? "on" : "off"}>
       <div className="background-grid" />
@@ -392,8 +409,10 @@ export function App() {
             loaded={configState.loaded}
             modpackName={selectedModpack.name}
             profile={selectedProfile}
+            readiness={launchReadiness}
             status={configState.status}
             versionLabel={selectedVersion.label}
+            onLaunchAttempt={handleLaunchAttempt}
           />
         ) : activeSection === "accounts" ? (
           <AccountsScreen
@@ -566,15 +585,19 @@ function HomeScreen({
   loaded,
   modpackName,
   profile,
+  readiness,
   versionLabel,
-  status
+  status,
+  onLaunchAttempt
 }: {
   accountLabel: string;
   loaded: boolean;
   modpackName: string;
   profile: LaunchProfile;
+  readiness: LaunchReadiness;
   status: string;
   versionLabel: string;
+  onLaunchAttempt: () => void;
 }) {
   return (
     <section className="home-screen" aria-labelledby="home-title">
@@ -607,12 +630,23 @@ function HomeScreen({
           </div>
         </dl>
 
-        <button className="play-button" type="button" disabled>
+        <button className="play-button" type="button" disabled={!readiness.ready} onClick={onLaunchAttempt}>
           <Play size={34} fill="currentColor" />
           <span>Play</span>
         </button>
 
         <p className="status-line">{status}</p>
+        <div className="preflight-panel" aria-label="Launch readiness">
+          {readiness.checks.map((check) => (
+            <div className="preflight-check" key={check.id}>
+              <StatusIcon ok={check.ok} />
+              <div>
+                <strong>{check.label}</strong>
+                <span>{check.detail}</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <footer className="home-footer">
