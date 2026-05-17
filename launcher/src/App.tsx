@@ -31,7 +31,16 @@ import {
 } from "./auth";
 import { defaultConfig, loadLauncherConfig, saveLauncherConfig, type LauncherConfig } from "./config";
 import { navItems } from "./data";
-import { getModpack, getProfile, getVersion, launchProfiles, modpacks, type LaunchProfile } from "./profiles";
+import {
+  getModpack,
+  getProfile,
+  getProfileForModpack,
+  getVersion,
+  launchProfiles,
+  modpacks,
+  type LaunchProfile,
+  type ModpackOption
+} from "./profiles";
 import { detectSystemPaths, type JavaInstallation, type SystemDetection } from "./system";
 
 type ConfigState = {
@@ -403,7 +412,10 @@ export function App() {
             onSelectProfile={selectProfile}
           />
         ) : activeSection === "modpacks" ? (
-          <ModpacksScreen selectedModpackId={selectedModpack.id} />
+          <ModpacksScreen
+            selectedModpackId={selectedModpack.id}
+            onSelectModpack={(modpack) => selectProfile(getProfileForModpack(modpack.id))}
+          />
         ) : activeSection === "settings" ? (
           <SettingsScreen
             backgroundAnimation={configState.config.backgroundAnimation}
@@ -674,7 +686,13 @@ function ProfilesScreen({
   );
 }
 
-function ModpacksScreen({ selectedModpackId }: { selectedModpackId: string }) {
+function ModpacksScreen({
+  selectedModpackId,
+  onSelectModpack
+}: {
+  selectedModpackId: string;
+  onSelectModpack: (modpack: ModpackOption) => void;
+}) {
   return (
     <section className="modpacks-screen" aria-labelledby="modpacks-title">
       <header className="screen-header">
@@ -684,33 +702,56 @@ function ModpacksScreen({ selectedModpackId }: { selectedModpackId: string }) {
         </div>
         <div className="profile-pill">
           <Folder size={16} />
-          <span>Manifest layer next</span>
+          <span>Local manifests</span>
         </div>
       </header>
 
       <div className="modpack-list">
         {modpacks.map((modpack) => {
           const version = getVersion(modpack.versionId);
+          const active = modpack.id === selectedModpackId;
           return (
-            <article className={modpack.id === selectedModpackId ? "modpack-row active" : "modpack-row"} key={modpack.id}>
-              <div>
-                <strong>{modpack.name}</strong>
-                <span>{modpack.summary}</span>
+            <article className={active ? "modpack-row active" : "modpack-row"} key={modpack.id}>
+              <div className="modpack-main">
+                <div>
+                  <strong>{modpack.name}</strong>
+                  <span>{modpack.summary}</span>
+                </div>
+                <div className="modpack-mods" aria-label={`${modpack.name} mods`}>
+                  {modpack.mods.length > 0 ? (
+                    modpack.mods.map((mod) => (
+                      <span className={mod.required ? "mod-chip required" : "mod-chip"} key={mod.id}>
+                        {mod.name}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="mod-chip">No bundled mods</span>
+                  )}
+                </div>
               </div>
-              <dl>
-                <div>
-                  <dt>Version</dt>
-                  <dd>{version.label}</dd>
-                </div>
-                <div>
-                  <dt>Mods</dt>
-                  <dd>{modpack.enabledMods}</dd>
-                </div>
-                <div>
-                  <dt>Status</dt>
-                  <dd>{modpack.status}</dd>
-                </div>
-              </dl>
+              <div className="modpack-side">
+                <dl>
+                  <div>
+                    <dt>Version</dt>
+                    <dd>{version.label}</dd>
+                  </div>
+                  <div>
+                    <dt>Mods</dt>
+                    <dd>{modpack.enabledMods}</dd>
+                  </div>
+                  <div>
+                    <dt>Size</dt>
+                    <dd>{modpack.totalSizeMb} MB</dd>
+                  </div>
+                  <div>
+                    <dt>Channel</dt>
+                    <dd>{modpack.channel}</dd>
+                  </div>
+                </dl>
+                <button className="secondary-action" type="button" disabled={active} onClick={() => onSelectModpack(modpack)}>
+                  {active ? "Selected" : "Select pack"}
+                </button>
+              </div>
             </article>
           );
         })}

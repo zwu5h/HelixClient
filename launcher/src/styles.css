@@ -875,24 +875,40 @@ h1 {
 
 .modpack-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.75fr);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.72fr);
   align-items: center;
   gap: 18px;
-  min-height: 112px;
+  min-height: 142px;
   padding: 18px;
 }
 
-.modpack-row strong,
-.modpack-row span {
+.modpack-main {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.modpack-side {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.modpack-side .secondary-action {
+  justify-self: end;
+}
+
+.modpack-main strong,
+.modpack-main > div > span {
   display: block;
 }
 
-.modpack-row strong {
+.modpack-main strong {
   margin-bottom: 7px;
   font-size: 20px;
 }
 
-.modpack-row span {
+.modpack-main > div > span {
   max-width: 460px;
   color: var(--muted);
   line-height: 1.5;
@@ -900,9 +916,34 @@ h1 {
 
 .modpack-row dl {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
+}
+
+.modpack-mods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.mod-chip {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid rgba(150, 210, 240, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #dbeaf4;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.mod-chip.required {
+  border-color: rgba(117, 240, 177, 0.3);
+  background: rgba(117, 240, 177, 0.08);
+  color: #bcf8d7;
 }
 
 .setting-row {

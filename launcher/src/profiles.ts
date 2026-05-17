@@ -26,7 +26,19 @@ export type ModpackOption = {
   versionId: string;
   summary: string;
   enabledMods: number;
+  channel: "stable" | "preview";
+  totalSizeMb: number;
+  mods: ModEntry[];
   status: string;
+};
+
+export type ModEntry = {
+  id: string;
+  name: string;
+  version: string;
+  required: boolean;
+  category: "performance" | "hud" | "quality" | "library";
+  source: "bundled" | "modrinth" | "manual";
 };
 
 export const versions: VersionOption[] = [
@@ -63,6 +75,42 @@ export const modpacks: ModpackOption[] = [
     versionId: "1.8.9-forge",
     summary: "Optimized client-side PvP pack with HUD, FPS and quality-of-life modules.",
     enabledMods: 18,
+    channel: "stable",
+    totalSizeMb: 86,
+    mods: [
+      {
+        id: "optifine-1-8-9",
+        name: "OptiFine",
+        version: "HD U M5",
+        required: true,
+        category: "performance",
+        source: "manual"
+      },
+      {
+        id: "patcher",
+        name: "Patcher",
+        version: "1.8.9-1.8.7",
+        required: true,
+        category: "quality",
+        source: "modrinth"
+      },
+      {
+        id: "keystrokes",
+        name: "Keystrokes",
+        version: "8.1",
+        required: false,
+        category: "hud",
+        source: "bundled"
+      },
+      {
+        id: "timechanger",
+        name: "TimeChanger",
+        version: "1.8.9",
+        required: false,
+        category: "quality",
+        source: "bundled"
+      }
+    ],
     status: "Ready for manifest wiring"
   },
   {
@@ -71,6 +119,42 @@ export const modpacks: ModpackOption[] = [
     versionId: "1.21.1-fabric",
     summary: "A lightweight modern profile for performance, HUD and clean usability.",
     enabledMods: 12,
+    channel: "preview",
+    totalSizeMb: 64,
+    mods: [
+      {
+        id: "sodium",
+        name: "Sodium",
+        version: "0.6.x",
+        required: true,
+        category: "performance",
+        source: "modrinth"
+      },
+      {
+        id: "lithium",
+        name: "Lithium",
+        version: "0.14.x",
+        required: true,
+        category: "performance",
+        source: "modrinth"
+      },
+      {
+        id: "modmenu",
+        name: "Mod Menu",
+        version: "11.x",
+        required: false,
+        category: "quality",
+        source: "modrinth"
+      },
+      {
+        id: "fabric-api",
+        name: "Fabric API",
+        version: "0.100.x",
+        required: true,
+        category: "library",
+        source: "modrinth"
+      }
+    ],
     status: "Manifest planned"
   },
   {
@@ -79,6 +163,9 @@ export const modpacks: ModpackOption[] = [
     versionId: "1.21.1-vanilla",
     summary: "No mod loader, no modpack. Useful for testing official asset and version handling.",
     enabledMods: 0,
+    channel: "stable",
+    totalSizeMb: 0,
+    mods: [],
     status: "Available"
   }
 ];
@@ -132,4 +219,8 @@ export function getVersion(versionId: string): VersionOption {
 
 export function getModpack(modpackId: string): ModpackOption {
   return modpacks.find((modpack) => modpack.id === modpackId) ?? modpacks[0];
+}
+
+export function getProfileForModpack(modpackId: string): LaunchProfile {
+  return launchProfiles.find((profile) => profile.modpackId === modpackId) ?? launchProfiles[0];
 }
