@@ -44,6 +44,8 @@ struct LauncherConfig {
     background_animation: bool,
     #[serde(default)]
     custom_java_path: Option<String>,
+    #[serde(default)]
+    custom_minecraft_path: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -221,6 +223,7 @@ impl Default for LauncherConfig {
             accent_color: "#66d9ff".to_string(),
             background_animation: true,
             custom_java_path: None,
+            custom_minecraft_path: None,
         }
     }
 }
@@ -265,7 +268,7 @@ fn save_launcher_config(app: tauri::AppHandle, config: LauncherConfig) -> Result
 #[tauri::command]
 fn detect_system_paths(app: tauri::AppHandle) -> Result<SystemDetection, String> {
     let config = load_launcher_config(app)?;
-    let minecraft = detect_minecraft_path();
+    let minecraft = detect_minecraft_path(config.custom_minecraft_path.as_deref());
     let java = detect_java_installations(config.custom_java_path.as_deref());
     let message = match (
         minecraft.exists,
@@ -282,7 +285,7 @@ fn detect_system_paths(app: tauri::AppHandle) -> Result<SystemDetection, String>
         (true, false, false) => {
             "Minecraft folder found, but no suitable Java runtime was detected."
         }
-        (false, _, _) => "Minecraft folder was not found in the default Windows location.",
+        (false, _, _) => "Minecraft folder was not found or the configured path is invalid.",
     };
 
     Ok(SystemDetection {
@@ -326,7 +329,7 @@ fn prepare_launch_plan(
         blockers.push("Minecraft Java ownership is not validated.".to_string());
     }
     if !system.minecraft.exists {
-        blockers.push("Default .minecraft folder is missing.".to_string());
+        blockers.push("Minecraft folder is missing or the configured path is invalid.".to_string());
     }
     if java.is_none() {
         blockers.push(format!("{} runtime is missing.", request.java_target));
@@ -850,7 +853,11 @@ fn validate_minecraft_ownership(access_token: &str) -> Result<bool, String> {
         .any(|item| item.name == "game_minecraft" || item.name == "product_minecraft"))
 }
 
-fn detect_minecraft_path() -> MinecraftPathStatus {
+fn detect_minecraft_path(custom_minecraft_path: Option<&str>) -> MinecraftPathStatus {
+    if let Some(custom) = custom_minecraft_path.filter(|path| !path.trim().is_empty()) {
+        return minecraft_path_status(PathBuf::from(custom));
+    }
+
     let mut candidates = Vec::new();
     if let Ok(appdata) = std::env::var("APPDATA") {
         candidates.push(PathBuf::from(appdata).join(".minecraft"));
@@ -869,6 +876,10 @@ fn detect_minecraft_path() -> MinecraftPathStatus {
         .find(|candidate| candidate.exists())
         .unwrap_or_else(default_minecraft_path);
 
+    minecraft_path_status(path)
+}
+
+fn minecraft_path_status(path: PathBuf) -> MinecraftPathStatus {
     MinecraftPathStatus {
         exists: path.exists(),
         versions_dir_exists: path.join("versions").exists(),

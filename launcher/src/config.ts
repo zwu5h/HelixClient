@@ -7,6 +7,7 @@ export type LauncherConfig = {
   accentColor: string;
   backgroundAnimation: boolean;
   customJavaPath?: string;
+  customMinecraftPath?: string;
 };
 
 export const defaultConfig: LauncherConfig = {
@@ -15,7 +16,8 @@ export const defaultConfig: LauncherConfig = {
   selectedModpackId: "pvp-1-8-9",
   accentColor: "#66d9ff",
   backgroundAnimation: true,
-  customJavaPath: undefined
+  customJavaPath: undefined,
+  customMinecraftPath: undefined
 };
 
 const fallbackKey = "helix-launcher-config";

@@ -254,6 +254,27 @@ export function App() {
     await handleSystemScan();
   }
 
+  async function updateCustomMinecraftPath(customMinecraftPath?: string) {
+    const nextConfig = {
+      ...configState.config,
+      customMinecraftPath: customMinecraftPath?.trim() || undefined
+    };
+
+    setConfigState((current) => ({
+      ...current,
+      config: nextConfig,
+      status: "Saving Minecraft folder path"
+    }));
+
+    await saveLauncherConfig(nextConfig);
+
+    setConfigState((current) => ({
+      ...current,
+      status: nextConfig.customMinecraftPath ? "Custom Minecraft path saved" : "Custom Minecraft path cleared"
+    }));
+    await handleSystemScan();
+  }
+
   async function selectProfile(profile: LaunchProfile) {
     const nextConfig = {
       ...configState.config,
@@ -564,8 +585,10 @@ export function App() {
           <SettingsScreen
             backgroundAnimation={configState.config.backgroundAnimation}
             customJavaPath={configState.config.customJavaPath}
+            customMinecraftPath={configState.config.customMinecraftPath}
             status={configState.status}
             onSaveCustomJavaPath={updateCustomJavaPath}
+            onSaveCustomMinecraftPath={updateCustomMinecraftPath}
             onToggleAnimation={toggleAnimation}
           />
         ) : activeSection === "logs" ? (
@@ -1186,21 +1209,30 @@ function formatLogTime(value: string) {
 function SettingsScreen({
   backgroundAnimation,
   customJavaPath,
+  customMinecraftPath,
   status,
   onSaveCustomJavaPath,
+  onSaveCustomMinecraftPath,
   onToggleAnimation
 }: {
   backgroundAnimation: boolean;
   customJavaPath?: string;
+  customMinecraftPath?: string;
   status: string;
   onSaveCustomJavaPath: (path?: string) => void;
+  onSaveCustomMinecraftPath: (path?: string) => void;
   onToggleAnimation: () => void;
 }) {
   const [javaPath, setJavaPath] = useState(customJavaPath ?? "");
+  const [minecraftPath, setMinecraftPath] = useState(customMinecraftPath ?? "");
 
   useEffect(() => {
     setJavaPath(customJavaPath ?? "");
   }, [customJavaPath]);
+
+  useEffect(() => {
+    setMinecraftPath(customMinecraftPath ?? "");
+  }, [customMinecraftPath]);
 
   return (
     <section className="settings-screen" aria-labelledby="settings-title">
@@ -1252,6 +1284,38 @@ function SettingsScreen({
             Save
           </button>
           <button className="secondary-action" type="button" onClick={() => onSaveCustomJavaPath(undefined)}>
+            Reset
+          </button>
+        </div>
+      </form>
+
+      <form
+        className="settings-panel"
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSaveCustomMinecraftPath(minecraftPath);
+        }}
+      >
+        <div className="settings-panel-header">
+          <div>
+            <strong>Custom Minecraft folder</strong>
+            <span>Point Helix to a portable or moved .minecraft folder.</span>
+          </div>
+          <Folder size={20} />
+        </div>
+        <label htmlFor="custom-minecraft-path">.minecraft path</label>
+        <div className="settings-input-row">
+          <input
+            id="custom-minecraft-path"
+            onChange={(event) => setMinecraftPath(event.target.value)}
+            placeholder="C:\\Users\\you\\AppData\\Roaming\\.minecraft"
+            type="text"
+            value={minecraftPath}
+          />
+          <button className="secondary-action" type="submit">
+            Save
+          </button>
+          <button className="secondary-action" type="button" onClick={() => onSaveCustomMinecraftPath(undefined)}>
             Reset
           </button>
         </div>
